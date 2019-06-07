@@ -1,0 +1,24 @@
+{
+  "name": "spotify",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "client": "cd client && yarn start",
+    "server": "nodemon index.js",
+    "dev": "run-p server start",
+    "dev:server": "cd client && yarn build && cd .. && yarn start",
+    "start": "node index.js",
+    "heroku-postbuild": "cd client && npm install && npm install --only=dev --no-shrinkwrap && npm run build"
+  },
+  "author": "Salah",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.18.0",
+    "cors": "^2.8.5",
+    "express": "^4.16.4",
+    "nedb": "^1.8.0",
+    "node-cron": "^2.0.3",
+    "pusher": "^2.2.0"
+  }
+}
