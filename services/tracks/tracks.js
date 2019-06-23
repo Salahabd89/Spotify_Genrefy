@@ -1,166 +1,173 @@
 
 'use strict'
 var request = require('request');
+var util = require('util');
 
- async function getrecentlyPlayed(list){
-
-  const tracks = []
-
-     await list.map( (track, idx) => 
-                tracks.push({
-                    id: track.track.artists[0].id + idx,
-                    track_id: track.track.artists[0].id,
-                    date_time: track.played_at,
-                    artist_url: 'https://api.spotify.com/v1/artists/' + track.track.artists[0].id,
-                    type: 'recenetly played'
-                })
-            );
-
-  return await Promise.all(tracks)
-}
 async function recentlyPlayed(req, res, next) {
 
   try {
 
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+    // Request methods you wish to allow
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    // Request headers you wish to allow
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, content-type');
+    // Set to true if you need the website to include cookies in the requests sent
+    // to the API (e.g. in case you use sessions)
+    res.setHeader('Access-Control-Allow-Credentials', true);
+
     const url = 'https://api.spotify.com/v1/me/player/recently-played?limit=10';
 
+    const tracks = []
+
     var access_token = req.cookies['auth']
-    request.get({
+
+    let options = {
       url: url,
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${access_token}`
-      },
-      json: true
-    }, async function (error, response, body) {
+      }, json: true
+    }
 
-      if (!error && response.statusCode === 200) {
-        res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
-        // Request methods you wish to allow
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
-        // Request headers you wish to allow
-        res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, content-type');
-        // Set to true if you need the website to include cookies in the requests sent
-        // to the API (e.g. in case you use sessions)
-        res.setHeader('Access-Control-Allow-Credentials', true);
+    const getRecentlyPlayed = util.promisify(request);
 
-        req.recentlyPlayed  = await getrecentlyPlayed(body.items)
-        next()
-      }
+    const recentplayed = await getRecentlyPlayed(options).then(list => {
+
+      list.body.items.map((track, idx) =>
+        tracks.push({
+          id: track.track.artists[0].id + idx,
+          track_id: track.track.artists[0].id,
+          date_time: track.played_at,
+          artist_url: 'https://api.spotify.com/v1/artists/' + track.track.artists[0].id,
+          type: 'recenetly played'
+        })
+
+      );
+      return tracks
     })
 
-    
+    req.recentlyPlayed = recentplayed
+    next()
+
   } catch (e) {
-    
-  } finally{
-   
+
+    console.log(e)
+
+  } finally {
+
   }
 };
 
-function playLists(req, res, next) {
+async function playLists(req, res, next) {
 
-  
+  try {
+
   const url = 'https://api.spotify.com/v1/me/playlists';
 
   var access_token = req.cookies['auth']
 
-  var playlistTrackList = [];
+  const playlistTrackList = [];
 
-  request.get({
+  let options = {
     url: url,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${access_token}`
-    },
-    json: true
-  }, function (error, response, body) {
+    }, json: true
+  }
 
-    if (!error && response.statusCode === 200) {
-      
+  const getPlaylists = util.promisify(request);
 
-      for(var i=0; i < body.items.length; i++){
-      playlistTrackList.push({
-          id: i,
-          link: body.items[i].tracks.href,
-          user: body.items[i].owner.display_name
-      });
-      }
+  const playlists = await getPlaylists(options).then(list => {
 
-     if (req.playlistTracks == null){
+      list.body.items.map((track, idx) =>
 
-        req.playlistTrackslist = playlistTrackList;
+        playlistTrackList.push({
+          id: idx,
+          link: track.tracks.href,
+          user: track.owner.display_name
+        })
+      )
 
-      } 
-
-      next()
-
-    }
+    return playlistTrackList
   })
+
+  req.playlists = playlists
+
+  next()
+
+} catch (e) {
+
+  console.log(e)
+
+} finally {
+
+}
+
 };
 
-function playListTracks(req, res, next) {
+async function playListTracks(req, res, next) {
 
-  const trackListUrl = req.playlistTrackslist;
- 
-  var access_token = req.cookies['auth']
- 
-  var tracks = [];
+  try {
 
-  var playlists_completed = 0;
+    const playlists = req.playlists;
+
+    var access_token = req.cookies['auth']
+
+    var tracks = [];
+
+    await Promise.all(playlists.map(async (playlist, indx) => {
+
+      let options = {
+        url: playlist.link,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${access_token}`,
+          limit:50
+        }, json: true
+      }
+
+      const getTrackList = util.promisify(request);
+
+  
+      await getTrackList(options).then(items => {
 
 
+        items.body.items.map(async (t) => {
 
+          if(tracks.length < 350){
 
-  for(var i = 0; i < trackListUrl.length; i++){
+            tracks.push({
+              id: t.track.id,
+              track_id: t.track.id,
+              date_time: items.body.items[0].added_at,
+              artist_url: 'https://api.spotify.com/v1/artists/' + t.track.artists[0].id,
+              type: 'playlist'
+            });
 
-  const url = trackListUrl[i].link
-
-  var index = i;
-
-
-  request.get({
-    url: url,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${access_token}`
-    },
-    json: true
-  }, function (error, response, body) {
-
-    if (!error && response.statusCode === 200) {
-
-      for(var j = 0; j < body.items.length; j++){
-        tracks.push({
-          id: body.items[j].track.artists[0].id + j,
-          track_id: body.items[j].track.artists[0].id,
-          date_time: body.items[j].added_at,
-          type: 'playlist'
-        });
-
-        if(j == body.items.length - 1){
-
-           playlists_completed = playlists_completed + 1
         }
 
-      }
-      
-      //console.log("PLay List completed: " + playlists_completed)
-      //console.log("URL Length: " + trackListUrl.length)
-      if (playlists_completed ==  trackListUrl.length){
+        })
+      })
+    }))
 
-        
-        req.playlists = tracks
-        console.log(req.playlists)
+    req.playlistTracks = tracks
 
-        next()
-     }
-    }
-  })
- }
-};
+    next()
+
+  } catch (e) {
+
+      console.log(e)
+
+  } finally {
+
+  }
+
+}
 
 module.exports = {
   recentlyPlayed: recentlyPlayed,
